@@ -1,3 +1,6 @@
+// ==========================================
+// PixelForge Studio - Final Script (Part 1)
+// ==========================================
 const imageInput = document.getElementById('imageInput');
 const emptyState = document.getElementById('emptyState');
 const previewContainer = document.getElementById('previewContainer');
@@ -35,6 +38,7 @@ let flipH = 1;
 let flipV = 1;
 let activeFilter = 'none';
 let bgRemoved = false;
+let adTimerInterval = null;
 
 function getVal(arr, i) { return Reflect.get(arr, i); }
 function setVal(arr, i, v) { Reflect.set(arr, i, v); }
@@ -75,6 +79,9 @@ function updateLabels() {
     qualityVal.textContent = qualitySlider.value + '%';
     tolVal.textContent = tolSlider.value;
 }
+// ==========================================
+// PixelForge Studio - Final Script (Part 2)
+// ==========================================
 function drawImage() {
     if (!isImageLoaded || !workingImage) return;
     let w = parseInt(widthInput.value) || workingImage.width;
@@ -191,8 +198,58 @@ window.resetImage = function() {
     resetStates(); drawImage();
 };
 
+// ==========================================
+// زر الحفظ مع إعلان 15 ثانية (ويب + APK)
+// ==========================================
 window.downloadImage = function() {
-    if (!isImageLoaded) return alert("اختر صورة أولاً!");
+    if (!isImageLoaded) return alert("الرجاء اختيار صورة أولاً!");
+
+    if (window.AndroidAds && typeof window.AndroidAds.showRewardedAd === 'function') {
+        window.AndroidAds.showRewardedAd();
+        return;
+    }
+
+    const modal = document.getElementById('videoAdModal');
+    const timerText = document.getElementById('adTimerText');
+    const skipBtn = document.getElementById('skipAdBtn');
+
+    if (!modal) { saveCanvasNow(); return; }
+
+    let seconds = 15;
+    modal.style.display = 'flex';
+    skipBtn.disabled = true;
+    skipBtn.style.background = '#475569';
+    skipBtn.style.color = '#94a3b8';
+    skipBtn.style.cursor = 'not-allowed';
+    skipBtn.textContent = '⏳ انتظر ' + seconds + ' ثانية للحفظ...';
+    timerText.textContent = 'جاري تجهيز الصورة: ' + seconds + ' ثانية';
+
+    if (adTimerInterval) clearInterval(adTimerInterval);
+
+    adTimerInterval = setInterval(function() {
+        seconds--;
+        if (seconds > 0) {
+            timerText.textContent = 'جاري تجهيز الصورة: ' + seconds + ' ثانية';
+            skipBtn.textContent = '⏳ انتظر ' + seconds + ' ثانية للحفظ...';
+        } else {
+            clearInterval(adTimerInterval);
+            timerText.textContent = '✅ اكتمل الإعلان!';
+            skipBtn.disabled = false;
+            skipBtn.style.background = '#10b981';
+            skipBtn.style.color = '#ffffff';
+            skipBtn.style.cursor = 'pointer';
+            skipBtn.textContent = '⬇️ تم الحفظ (إغلاق النافذة)';
+
+            saveCanvasNow();
+
+            skipBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+        }
+    }, 1000);
+};
+
+window.saveCanvasNow = function() {
     const format = formatSelect.value;
     const quality = parseInt(qualitySlider.value) / 100;
     const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
@@ -216,4 +273,3 @@ textColorInput.addEventListener('input', drawImage);
 watermarkPos.addEventListener('change', drawImage);
 widthInput.addEventListener('input', function() { if (isImageLoaded && lockRatio.checked) heightInput.value = Math.round(parseInt(widthInput.value) / aspectRatio); drawImage(); });
 heightInput.addEventListener('input', function() { if (isImageLoaded && lockRatio.checked) widthInput.value = Math.round(parseInt(heightInput.value) * aspectRatio); drawImage(); });
-
