@@ -1,1 +1,146 @@
-# photo-studiow
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PixelForge Studio - Pro Photo Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">⚡ PixelForge <b>Studio</b></div>
+        <div class="nav-badges">
+            <span class="badge">🚀 Fast Engine</span>
+            <span class="badge">🔒 100% Private</span>
+        </div>
+    </nav>
+
+    <div class="studio-layout">
+        <aside class="tools-sidebar">
+            <div class="sidebar-title">TOOLS</div>
+            <button type="button" class="tool-tab" onclick="scrollToSection('sec-bg')">🪄 Background</button>
+            <button type="button" class="tool-tab" onclick="scrollToSection('sec-crop')">✂️ Crop & Resize</button>
+            <button type="button" class="tool-tab" onclick="scrollToSection('sec-filters')">🎨 Filters</button>
+            <button type="button" class="tool-tab" onclick="scrollToSection('sec-watermark')">✍️ Watermark</button>
+            <button type="button" class="tool-tab" onclick="scrollToSection('sec-export')">💾 Export</button>
+        </aside>
+
+        <main class="canvas-stage">
+            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            
+            <div class="empty-state" id="emptyState">
+                <div class="upload-icon">🖼️</div>
+                <h2>Select an image to start editing</h2>
+                <p>Supports JPG, PNG, WEBP • Fast & Private</p>
+                <label for="imageInput" class="btn-primary">📁 Select Image</label>
+            </div>
+
+            <div class="preview-container" id="previewContainer" style="display: none;">
+                <div class="canvas-checkerboard">
+                    <canvas id="canvas"></canvas>
+                </div>
+
+                <div class="status-bar" id="imageInfo">0 × 0 px | 0 KB</div>
+
+                <div class="bottom-toolbar">
+                    <label for="imageInput" class="btn-label">📁 New</label>
+                    <button type="button" onclick="rotateImage()">🔄 Rotate 90°</button>
+                    <button type="button" onclick="flipHorizontal()">↔️ Flip H</button>
+                    <button type="button" onclick="flipVertical()">↕️ Flip V</button>
+                    <button type="button" class="btn-danger" onclick="resetImage()">↺ Reset</button>
+                </div>
+            </div>
+        </main>
+
+        <aside class="controls-panel">
+            <div class="control-card highlight-card" id="sec-bg">
+                <h3>🪄 Smart Background & Frame</h3>
+                <button type="button" class="btn-ai" onclick="removeSmartBg()">✨ Auto Remove Background</button>
+                
+                <label>Removal Sensitivity: <span id="tolVal">35</span></label>
+                <input type="range" id="tolSlider" min="5" max="120" value="35">
+
+                <div class="row" style="margin-top: 8px;">
+                    <input type="color" id="bgColorInput" value="#ffffff">
+                    <button type="button" onclick="applyBgColor()" style="flex:1;">Fill BG</button>
+                    <button type="button" onclick="toggleFrame()" style="flex:1;">🖼️ Frame</button>
+                </div>
+            </div>
+
+            <div class="control-card" id="sec-crop">
+                <h3>✂️ Quick Crop & Resize</h3>
+                <div class="grid-2" style="margin-bottom: 10px;">
+                    <button type="button" onclick="cropAspect(1, 1)">Crop 1:1 (Square)</button>
+                    <button type="button" onclick="cropAspect(16, 9)">Crop 16:9 (Wide)</button>
+                    <button type="button" onclick="cropAspect(9, 16)">Crop 9:16 (Story)</button>
+                    <button type="button" onclick="cropAspect(4, 3)">Crop 4:3 (Photo)</button>
+                </div>
+
+                <div class="row">
+                    <input type="number" id="widthInput" placeholder="Width">
+                    <span>×</span>
+                    <input type="number" id="heightInput" placeholder="Height">
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="lockRatio" checked> Lock Aspect Ratio
+                </label>
+                <div class="grid-2">
+                    <button type="button" onclick="setPreset(1080, 1080)">Instagram Post</button>
+                    <button type="button" onclick="setPreset(1080, 1920)">TikTok / Reels</button>
+                    <button type="button" onclick="setPreset(1280, 720)">YouTube Thumb</button>
+                    <button type="button" onclick="setPreset(600, 600)">ID / Passport</button>
+                </div>
+            </div>
+
+            <div class="control-card" id="sec-filters">
+                <h3>🎨 Color & Pixel Filters</h3>
+                <button type="button" class="btn-accent" style="width:100%; margin-bottom:8px;" onclick="autoEnhance()">⚡ Auto Enhance</button>
+                
+                <label>Brightness: <span id="brightnessVal">0</span></label>
+                <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+
+                <label>Contrast: <span id="contrastVal">0</span></label>
+                <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+
+                <div class="grid-2">
+                    <button type="button" onclick="toggleFilter('bw')">⚫ B&W</button>
+                    <button type="button" onclick="toggleFilter('sepia')">📜 Vintage</button>
+                    <button type="button" onclick="toggleFilter('invert')">🔄 Invert</button>
+                    <button type="button" onclick="toggleFilter('warm')">☀️ Warm</button>
+                </div>
+            </div>
+
+            <div class="control-card" id="sec-watermark">
+                <h3>✍️ Watermark & Text</h3>
+                <div class="row">
+                    <input type="text" id="watermarkInput" placeholder="Enter brand name...">
+                    <input type="color" id="textColorInput" value="#ffffff">
+                </div>
+                <select id="watermarkPos" style="margin-top:8px;">
+                    <option value="bottom-right">Bottom Right</option>
+                    <option value="bottom-left">Bottom Left</option>
+                    <option value="center">Center</option>
+                    <option value="top-right">Top Right</option>
+                </select>
+            </div>
+
+            <div class="control-card" id="sec-export">
+                <h3>💾 Compress & Download</h3>
+                <label>Quality: <span id="qualityVal">90%</span></label>
+                <input type="range" id="qualitySlider" min="10" max="100" value="90">
+                
+                <select id="formatSelect" style="margin-bottom:10px;">
+                    <option value="image/jpeg">JPG (Compressed)</option>
+                    <option value="image/png">PNG (Transparent / HD)</option>
+                    <option value="image/webp">WEBP (Fast Web)</option>
+                </select>
+                <button type="button" class="btn-success" style="width:100%;" onclick="downloadImage()">⬇️ Download Image</button>
+            </div>
+        </aside>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+
