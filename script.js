@@ -1,6 +1,3 @@
-// ==========================================
-// PixelForge Studio - Final Script (Part 1)
-// ==========================================
 const imageInput = document.getElementById('imageInput');
 const emptyState = document.getElementById('emptyState');
 const previewContainer = document.getElementById('previewContainer');
@@ -43,9 +40,16 @@ let adTimerInterval = null;
 function getVal(arr, i) { return Reflect.get(arr, i); }
 function setVal(arr, i, v) { Reflect.set(arr, i, v); }
 
+window.pickNewImage = function() {
+    imageInput.value = '';
+    imageInput.click();
+};
+
 imageInput.addEventListener('change', function(e) {
-    const file = e.target.files.item(0);
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files.item(0);
+
     const reader = new FileReader();
     reader.onload = function(ev) {
         const img = new Image();
@@ -56,8 +60,10 @@ imageInput.addEventListener('change', function(e) {
             aspectRatio = img.width / img.height;
             widthInput.value = img.width;
             heightInput.value = img.height;
+
             emptyState.style.display = 'none';
             previewContainer.style.display = 'flex';
+
             resetStates();
             drawImage();
         };
@@ -79,9 +85,7 @@ function updateLabels() {
     qualityVal.textContent = qualitySlider.value + '%';
     tolVal.textContent = tolSlider.value;
 }
-// ==========================================
-// PixelForge Studio - Final Script (Part 2)
-// ==========================================
+
 function drawImage() {
     if (!isImageLoaded || !workingImage) return;
     let w = parseInt(widthInput.value) || workingImage.width;
@@ -198,11 +202,8 @@ window.resetImage = function() {
     resetStates(); drawImage();
 };
 
-// ==========================================
-// زر الحفظ مع إعلان 15 ثانية (ويب + APK)
-// ==========================================
 window.downloadImage = function() {
-    if (!isImageLoaded) return alert("الرجاء اختيار صورة أولاً!");
+    if (!isImageLoaded) return alert("Please select an image first!");
 
     if (window.AndroidAds && typeof window.AndroidAds.showRewardedAd === 'function') {
         window.AndroidAds.showRewardedAd();
@@ -220,56 +221,3 @@ window.downloadImage = function() {
     skipBtn.disabled = true;
     skipBtn.style.background = '#475569';
     skipBtn.style.color = '#94a3b8';
-    skipBtn.style.cursor = 'not-allowed';
-    skipBtn.textContent = '⏳ انتظر ' + seconds + ' ثانية للحفظ...';
-    timerText.textContent = 'جاري تجهيز الصورة: ' + seconds + ' ثانية';
-
-    if (adTimerInterval) clearInterval(adTimerInterval);
-
-    adTimerInterval = setInterval(function() {
-        seconds--;
-        if (seconds > 0) {
-            timerText.textContent = 'جاري تجهيز الصورة: ' + seconds + ' ثانية';
-            skipBtn.textContent = '⏳ انتظر ' + seconds + ' ثانية للحفظ...';
-        } else {
-            clearInterval(adTimerInterval);
-            timerText.textContent = '✅ اكتمل الإعلان!';
-            skipBtn.disabled = false;
-            skipBtn.style.background = '#10b981';
-            skipBtn.style.color = '#ffffff';
-            skipBtn.style.cursor = 'pointer';
-            skipBtn.textContent = '⬇️ تم الحفظ (إغلاق النافذة)';
-
-            saveCanvasNow();
-
-            skipBtn.onclick = function() {
-                modal.style.display = 'none';
-            };
-        }
-    }, 1000);
-};
-
-window.saveCanvasNow = function() {
-    const format = formatSelect.value;
-    const quality = parseInt(qualitySlider.value) / 100;
-    const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
-    const exp = document.createElement('canvas'); exp.width = canvas.width; exp.height = canvas.height;
-    const eCtx = exp.getContext('2d');
-    if (format === 'image/jpeg') { eCtx.fillStyle = '#ffffff'; eCtx.fillRect(0, 0, exp.width, exp.height); }
-    eCtx.drawImage(canvas, 0, 0);
-    const link = document.createElement('a');
-    link.href = exp.toDataURL(format, quality);
-    link.download = 'PixelForge_' + Date.now() + '.' + ext;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-};
-
-tolSlider.addEventListener('input', function() { updateLabels(); if (bgRemoved) drawImage(); });
-brightnessSlider.addEventListener('input', function() { updateLabels(); drawImage(); });
-contrastSlider.addEventListener('input', function() { updateLabels(); drawImage(); });
-qualitySlider.addEventListener('input', function() { updateLabels(); updateFileSizeInfo(); });
-formatSelect.addEventListener('change', updateFileSizeInfo);
-watermarkInput.addEventListener('input', drawImage);
-textColorInput.addEventListener('input', drawImage);
-watermarkPos.addEventListener('change', drawImage);
-widthInput.addEventListener('input', function() { if (isImageLoaded && lockRatio.checked) heightInput.value = Math.round(parseInt(widthInput.value) / aspectRatio); drawImage(); });
-heightInput.addEventListener('input', function() { if (isImageLoaded && lockRatio.checked) widthInput.value = Math.round(parseInt(heightInput.value) * aspectRatio); drawImage(); });
