@@ -85,7 +85,6 @@ function draw() {
     const kb = Math.max(1, Math.round((c.toDataURL(fmt, q).length * 3) / 4 / 1024));
     document.getElementById('infoBar').textContent = c.width + ' × ' + c.height + ' px | ' + kb + ' KB';
 }
-
 function goSec(id) { document.getElementById(id).scrollIntoView({ behavior: 'smooth' }); }
 function remBg() { if (!ok) return; nBg = !nBg; if (nBg) document.getElementById('fmtSel').value = 'image/png'; draw(); }
 function setBg() { if (!ok) return; bgC = document.getElementById('bgColInp').value; draw(); }
@@ -95,21 +94,54 @@ function flpH() { if (!ok) return; fh *= -1; draw(); }
 function flpV() { if (!ok) return; fv *= -1; draw(); }
 function flt(t) { if (!ok) return; fl = (fl === t) ? 'none' : t; draw(); }
 function autoEnh() { if (!ok) return; document.getElementById('brInp').value = 12; document.getElementById('ctInp').value = 20; document.getElementById('brTxt').textContent = 12; document.getElementById('ctTxt').textContent = 20; draw(); }
-function pre(w, h) { if (!ok) return; document.getElementById('lockInp').checked = false; document.getElementById('wInp').value = w; document.getElementById('hInp').value = h; draw(); }
-function rstImg() { if (!ok) return; wImg = oImg; rat = oImg.width / oImg.height; document.getElementById('wInp').value = oImg.width; document.getElementById('hInp').value = oImg.height; bgC = null; frm = false; rot = 0; fh = 1; fv = 1; fl = 'none'; nBg = false; draw(); }
 
-function crp(rw, rh) {
+function rstImg() {
     if (!ok) return;
-    const tr = rw / rh; let sw = wImg.width, sh = wImg.height, cw = sw, ch = sh;
+    wImg = oImg; rat = oImg.width / oImg.height;
+    document.getElementById('wInp').value = oImg.width;
+    document.getElementById('hInp').value = oImg.height;
+    bgC = null; frm = false; rot = 0; fh = 1; fv = 1; fl = 'none'; nBg = false;
+    draw();
+}
+
+function crp(rw, rh, outW, outH) {
+    if (!ok || !oImg) return;
+    const tr = rw / rh;
+    let sw = oImg.width, sh = oImg.height, cw = sw, ch = sh;
     if (sw / sh > tr) cw = Math.round(sh * tr); else ch = Math.round(sw / tr);
-    const t = document.createElement('canvas'); t.width = cw; t.height = ch;
-    t.getContext('2d').drawImage(wImg, Math.round((sw - cw) / 2), Math.round((sh - ch) / 2), cw, ch, 0, 0, cw, ch);
-    const im = new Image(); im.onload = function() { wImg = im; rat = cw / ch; document.getElementById('wInp').value = cw; document.getElementById('hInp').value = ch; rot = 0; draw(); };
+    const finalW = outW || cw;
+    const finalH = outH || ch;
+    const t = document.createElement('canvas');
+    t.width = finalW; t.height = finalH;
+    t.getContext('2d').drawImage(oImg, Math.round((sw - cw) / 2), Math.round((sh - ch) / 2), cw, ch, 0, 0, finalW, finalH);
+    const im = new Image();
+    im.onload = function() {
+        wImg = im; rat = finalW / finalH;
+        document.getElementById('wInp').value = finalW;
+        document.getElementById('hInp').value = finalH;
+        rot = 0;
+        draw();
+    };
     im.src = t.toDataURL('image/png');
+}
+
+function pre(w, h) {
+    if (!ok) return;
+    document.getElementById('lockInp').checked = false;
+    crp(w, h, w, h);
+}
+
+function applyCustomDimensions() {
+    if (!ok || !oImg) return;
+    let w = parseInt(document.getElementById('wInp').value);
+    let h = parseInt(document.getElementById('hInp').value);
+    if (!w || w < 10 || !h || h < 10) return;
+    crp(w, h, w, h);
 }
 
 function dlImg() {
     if (!ok) return alert("Select an image first!");
+    if (window.AndroidAds && window.AndroidAds.showRewardedAd) { window.AndroidAds.showRewardedAd(); return; }
     const box = document.getElementById('adBox'), txt = document.getElementById('adSec'), btn = document.getElementById('adBtn');
     let s = 15;
     box.style.display = 'flex';
@@ -178,5 +210,21 @@ document.getElementById('fmtSel').onchange = draw;
 document.getElementById('watermarkInput').oninput = draw;
 document.getElementById('wmCol').oninput = draw;
 document.getElementById('wmPos').onchange = draw;
-document.getElementById('wInp').oninput = function() { if (ok && document.getElementById('lockInp').checked) document.getElementById('hInp').value = Math.round(parseInt(this.value) / rat); draw(); };
-document.getElementById('hInp').oninput = function() { if (ok && document.getElementById('lockInp').checked) document.getElementById('wInp').value = Math.round(parseInt(this.value) * rat); draw(); };
+
+document.getElementById('wInp').onchange = function() {
+    if (!ok) return;
+    const w = parseInt(this.value);
+    if (w && document.getElementById('lockInp').checked) {
+        document.getElementById('hInp').value = Math.round(w / rat);
+    }
+    applyCustomDimensions();
+};
+
+document.getElementById('hInp').onchange = function() {
+    if (!ok) return;
+    const h = parseInt(this.value);
+    if (h && document.getElementById('lockInp').checked) {
+        document.getElementById('wInp').value = Math.round(h * rat);
+    }
+    applyCustomDimensions();
+};
