@@ -1,223 +1,182 @@
-const imageInput = document.getElementById('imageInput');
-const emptyState = document.getElementById('emptyState');
-const previewContainer = document.getElementById('previewContainer');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const c = document.getElementById('canvas');
+const x = c.getContext('2d');
+const fInp = document.getElementById('imgFile');
+let oImg = null, wImg = null, ok = false, rat = 1;
+let bgC = null, frm = false, rot = 0, fh = 1, fv = 1, fl = 'none', nBg = false, tm = null;
 
-const widthInput = document.getElementById('widthInput');
-const heightInput = document.getElementById('heightInput');
-const lockRatio = document.getElementById('lockRatio');
-const imageInfo = document.getElementById('imageInfo');
+document.getElementById('pickBtn').onclick = function() { fInp.click(); };
+document.getElementById('newBtn').onclick = function() { fInp.click(); };
 
-const tolSlider = document.getElementById('tolSlider');
-const tolVal = document.getElementById('tolVal');
-const qualitySlider = document.getElementById('qualitySlider');
-const qualityVal = document.getElementById('qualityVal');
-const brightnessSlider = document.getElementById('brightnessSlider');
-const brightnessVal = document.getElementById('brightnessVal');
-const contrastSlider = document.getElementById('contrastSlider');
-const contrastVal = document.getElementById('contrastVal');
-
-const bgColorInput = document.getElementById('bgColorInput');
-const watermarkInput = document.getElementById('watermarkInput');
-const textColorInput = document.getElementById('textColorInput');
-const watermarkPos = document.getElementById('watermarkPos');
-const formatSelect = document.getElementById('formatSelect');
-
-let originalImage = null;
-let workingImage = null;
-let isImageLoaded = false;
-let aspectRatio = 1;
-let currentBgColor = null;
-let hasFrame = false;
-let rotation = 0;
-let flipH = 1;
-let flipV = 1;
-let activeFilter = 'none';
-let bgRemoved = false;
-let adTimerInterval = null;
-
-function getVal(arr, i) { return Reflect.get(arr, i); }
-function setVal(arr, i, v) { Reflect.set(arr, i, v); }
-
-window.pickNewImage = function() {
-    imageInput.value = '';
-    imageInput.click();
-};
-
-imageInput.addEventListener('change', function(e) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const file = files.item(0);
-
-    const reader = new FileReader();
-    reader.onload = function(ev) {
-        const img = new Image();
-        img.onload = function() {
-            originalImage = img;
-            workingImage = img;
-            isImageLoaded = true;
-            aspectRatio = img.width / img.height;
-            widthInput.value = img.width;
-            heightInput.value = img.height;
-
-            emptyState.style.display = 'none';
-            previewContainer.style.display = 'flex';
-
-            resetStates();
-            drawImage();
+fInp.onchange = function() {
+    const file = fInp.files.item(0);
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = function(e) {
+        const im = new Image();
+        im.onload = function() {
+            oImg = wImg = im; ok = true; rat = im.width / im.height;
+            document.getElementById('wInp').value = im.width;
+            document.getElementById('hInp').value = im.height;
+            document.getElementById('emptyBox').style.display = 'none';
+            document.getElementById('workBox').style.display = 'flex';
+            bgC = null; frm = false; rot = 0; fh = 1; fv = 1; fl = 'none'; nBg = false;
+            draw();
         };
-        img.src = ev.target.result;
+        im.src = e.target.result;
     };
-    reader.readAsDataURL(file);
-});
+    r.readAsDataURL(file);
+};
 
-function resetStates() {
-    currentBgColor = null; hasFrame = false; rotation = 0;
-    flipH = 1; flipV = 1; activeFilter = 'none'; bgRemoved = false;
-    brightnessSlider.value = 0; contrastSlider.value = 0; watermarkInput.value = '';
-    updateLabels();
-}
+function draw() {
+    if (!ok || !wImg) return;
+    let w = parseInt(document.getElementById('wInp').value) || wImg.width;
+    let h = parseInt(document.getElementById('hInp').value) || wImg.height;
+    let cw = (rot % 180 !== 0) ? h : w, ch = (rot % 180 !== 0) ? w : h;
+    let fs = frm ? Math.round(Math.min(cw, ch) * 0.04) : 0;
+    c.width = cw + fs * 2; c.height = ch + fs * 2;
+    x.clearRect(0, 0, c.width, c.height);
+    x.save();
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate((rot * Math.PI) / 180);
+    x.scale(fh, fv);
+    x.drawImage(wImg, -w / 2, -h / 2, w, h);
+    x.restore();
 
-function updateLabels() {
-    brightnessVal.textContent = brightnessSlider.value;
-    contrastVal.textContent = contrastSlider.value;
-    qualityVal.textContent = qualitySlider.value + '%';
-    tolVal.textContent = tolSlider.value;
-}
+    let id = x.getImageData(0, 0, c.width, c.height), d = id.data;
+    let tol = parseInt(document.getElementById('tolInp').value) * 2.5;
+    let br = parseInt(document.getElementById('brInp').value) * 2.55;
+    let ct = parseInt(document.getElementById('ctInp').value);
+    let fac = (259 * (ct + 255)) / (255 * (259 - ct));
+    let r0 = d.at(0), g0 = d.at(1), b0 = d.at(2);
 
-function drawImage() {
-    if (!isImageLoaded || !workingImage) return;
-    let w = parseInt(widthInput.value) || workingImage.width;
-    let h = parseInt(heightInput.value) || workingImage.height;
-    let cW = (rotation % 180 !== 0) ? h : w;
-    let cH = (rotation % 180 !== 0) ? w : h;
-    let fSize = hasFrame ? Math.round(Math.min(cW, cH) * 0.04) : 0;
-
-    canvas.width = cW + (fSize * 2);
-    canvas.height = cH + (fSize * 2);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale(flipH, flipV);
-    ctx.drawImage(workingImage, -w / 2, -h / 2, w, h);
-    ctx.restore();
-
-    let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let data = imgData.data;
-
-    if (bgRemoved) {
-        let tol = parseInt(tolSlider.value) * 2.5;
-        let r0 = getVal(data, 0), g0 = getVal(data, 1), b0 = getVal(data, 2);
-        for (let i = 0; i < data.length; i += 4) {
-            let diff = Math.abs(getVal(data, i) - r0) + Math.abs(getVal(data, i + 1) - g0) + Math.abs(getVal(data, i + 2) - b0);
-            if (diff < tol) setVal(data, i + 3, 0);
+    for (let i = 0; i < d.length; i += 4) {
+        let r = d.at(i), g = d.at(i + 1), b = d.at(i + 2);
+        if (nBg && (Math.abs(r - r0) + Math.abs(g - g0) + Math.abs(b - b0) < tol)) {
+            Reflect.set(d, i + 3, 0); continue;
         }
+        r = fac * (r - 128) + 128 + br; g = fac * (g - 128) + 128 + br; b = fac * (b - 128) + 128 + br;
+        if (fl === 'bw') r = g = b = 0.299 * r + 0.587 * g + 0.114 * b;
+        else if (fl === 'sepia') { let tr = 0.393*r+0.769*g+0.189*b, tg = 0.349*r+0.686*g+0.168*b, tb = 0.272*r+0.534*g+0.131*b; r=tr; g=tg; b=tb; }
+        else if (fl === 'invert') { r = 255 - r; g = 255 - g; b = 255 - b; }
+        else if (fl === 'warm') { r += 25; g += 8; b -= 20; }
+        Reflect.set(d, i, Math.min(255, Math.max(0, r)));
+        Reflect.set(d, i + 1, Math.min(255, Math.max(0, g)));
+        Reflect.set(d, i + 2, Math.min(255, Math.max(0, b)));
     }
+    x.putImageData(id, 0, 0);
 
-    let bright = parseInt(brightnessSlider.value) * 2.55;
-    let cont = parseInt(contrastSlider.value);
-    let factor = (259 * (cont + 255)) / (255 * (259 - cont));
-
-    for (let i = 0; i < data.length; i += 4) {
-        if (getVal(data, i + 3) === 0) continue;
-        let r = factor * (getVal(data, i) - 128) + 128 + bright;
-        let g = factor * (getVal(data, i + 1) - 128) + 128 + bright;
-        let b = factor * (getVal(data, i + 2) - 128) + 128 + bright;
-
-        if (activeFilter === 'bw') { r = g = b = 0.299 * r + 0.587 * g + 0.114 * b; }
-        else if (activeFilter === 'sepia') {
-            let tr = 0.393 * r + 0.769 * g + 0.189 * b;
-            let tg = 0.349 * r + 0.686 * g + 0.168 * b;
-            let tb = 0.272 * r + 0.534 * g + 0.131 * b;
-            r = tr; g = tg; b = tb;
-        } else if (activeFilter === 'invert') { r = 255 - r; g = 255 - g; b = 255 - b; }
-        else if (activeFilter === 'warm') { r += 25; g += 8; b -= 20; }
-
-        setVal(data, i, Math.min(255, Math.max(0, r)));
-        setVal(data, i + 1, Math.min(255, Math.max(0, g)));
-        setVal(data, i + 2, Math.min(255, Math.max(0, b)));
+    if (bgC || frm) {
+        x.globalCompositeOperation = 'destination-over';
+        x.fillStyle = bgC || '#ffffff';
+        x.fillRect(0, 0, c.width, c.height);
+        x.globalCompositeOperation = 'source-over';
     }
-    ctx.putImageData(imgData, 0, 0);
-
-    if (currentBgColor || hasFrame) {
-        ctx.globalCompositeOperation = 'destination-over';
-        ctx.fillStyle = currentBgColor || '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.globalCompositeOperation = 'source-over';
+    const tx = document.getElementById('wmInp').value.trim();
+    if (tx) {
+        const fz = Math.max(18, Math.round(c.width * 0.045));
+        x.font = 'bold ' + fz + 'px sans-serif'; x.fillStyle = document.getElementById('wmCol').value;
+        const p = document.getElementById('wmPos').value;
+        if (p === 'br') { x.textAlign = 'right'; x.fillText(tx, c.width - 20, c.height - 20); }
+        else if (p === 'bl') { x.textAlign = 'left'; x.fillText(tx, 20, c.height - 20); }
+        else if (p === 'tr') { x.textAlign = 'right'; x.fillText(tx, c.width - 20, fz + 15); }
+        else { x.textAlign = 'center'; x.fillText(tx, c.width / 2, c.height / 2); }
     }
-
-    const text = watermarkInput.value.trim();
-    if (text) {
-        const fontSize = Math.max(18, Math.round(canvas.width * 0.045));
-        ctx.font = 'bold ' + fontSize + 'px sans-serif';
-        ctx.fillStyle = textColorInput.value;
-        const pos = watermarkPos.value;
-        if (pos === 'bottom-right') { ctx.textAlign = 'right'; ctx.fillText(text, canvas.width - 20, canvas.height - 20); }
-        else if (pos === 'bottom-left') { ctx.textAlign = 'left'; ctx.fillText(text, 20, canvas.height - 20); }
-        else if (pos === 'top-right') { ctx.textAlign = 'right'; ctx.fillText(text, canvas.width - 20, fontSize + 15); }
-        else { ctx.textAlign = 'center'; ctx.fillText(text, canvas.width / 2, canvas.height / 2); }
-    }
-    updateFileSizeInfo();
+    const fmt = document.getElementById('fmtSel').value, q = parseInt(document.getElementById('qInp').value) / 100;
+    const kb = Math.max(1, Math.round((c.toDataURL(fmt, q).length * 3) / 4 / 1024));
+    document.getElementById('infoBar').textContent = c.width + ' × ' + c.height + ' px | ' + kb + ' KB';
 }
 
-function updateFileSizeInfo() {
-    if (!isImageLoaded) return;
-    const format = formatSelect.value;
-    const quality = parseInt(qualitySlider.value) / 100;
-    const dataUrl = canvas.toDataURL(format, quality);
-    const sizeInKB = Math.max(1, Math.round((dataUrl.length * 3) / 4 / 1024));
-    imageInfo.textContent = canvas.width + ' × ' + canvas.height + ' px | ' + sizeInKB + ' KB';
+function goSec(id) { document.getElementById(id).scrollIntoView({ behavior: 'smooth' }); }
+function remBg() { if (!ok) return; nBg = !nBg; if (nBg) document.getElementById('fmtSel').value = 'image/png'; draw(); }
+function setBg() { if (!ok) return; bgC = document.getElementById('bgColInp').value; draw(); }
+function togFrm() { if (!ok) return; frm = !frm; if (!bgC) bgC = '#ffffff'; draw(); }
+function rotImg() { if (!ok) return; rot = (rot + 90) % 360; draw(); }
+function flpH() { if (!ok) return; fh *= -1; draw(); }
+function flpV() { if (!ok) return; fv *= -1; draw(); }
+function flt(t) { if (!ok) return; fl = (fl === t) ? 'none' : t; draw(); }
+function autoEnh() { if (!ok) return; document.getElementById('brInp').value = 12; document.getElementById('ctInp').value = 20; document.getElementById('brTxt').textContent = 12; document.getElementById('ctTxt').textContent = 20; draw(); }
+function pre(w, h) { if (!ok) return; document.getElementById('lockInp').checked = false; document.getElementById('wInp').value = w; document.getElementById('hInp').value = h; draw(); }
+function rstImg() { if (!ok) return; wImg = oImg; rat = oImg.width / oImg.height; document.getElementById('wInp').value = oImg.width; document.getElementById('hInp').value = oImg.height; bgC = null; frm = false; rot = 0; fh = 1; fv = 1; fl = 'none'; nBg = false; draw(); }
+
+function crp(rw, rh) {
+    if (!ok) return;
+    const tr = rw / rh; let sw = wImg.width, sh = wImg.height, cw = sw, ch = sh;
+    if (sw / sh > tr) cw = Math.round(sh * tr); else ch = Math.round(sw / tr);
+    const t = document.createElement('canvas'); t.width = cw; t.height = ch;
+    t.getContext('2d').drawImage(wImg, Math.round((sw - cw) / 2), Math.round((sh - ch) / 2), cw, ch, 0, 0, cw, ch);
+    const im = new Image(); im.onload = function() { wImg = im; rat = cw / ch; document.getElementById('wInp').value = cw; document.getElementById('hInp').value = ch; rot = 0; draw(); };
+    im.src = t.toDataURL('image/png');
 }
 
-window.scrollToSection = function(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
-window.removeSmartBg = function() { if (!isImageLoaded) return; bgRemoved = !bgRemoved; if (bgRemoved) formatSelect.value = 'image/png'; drawImage(); };
-window.applyBgColor = function() { if (!isImageLoaded) return; currentBgColor = bgColorInput.value; drawImage(); };
-window.toggleFrame = function() { if (!isImageLoaded) return; hasFrame = !hasFrame; if (!currentBgColor) currentBgColor = '#ffffff'; drawImage(); };
-window.rotateImage = function() { if (!isImageLoaded) return; rotation = (rotation + 90) % 360; drawImage(); };
-window.flipHorizontal = function() { if (!isImageLoaded) return; flipH *= -1; drawImage(); };
-window.flipVertical = function() { if (!isImageLoaded) return; flipV *= -1; drawImage(); };
-window.toggleFilter = function(t) { if (!isImageLoaded) return; activeFilter = (activeFilter === t) ? 'none' : t; drawImage(); };
-window.autoEnhance = function() { if (!isImageLoaded) return; brightnessSlider.value = 12; contrastSlider.value = 20; updateLabels(); drawImage(); };
-window.setPreset = function(w, h) { if (!isImageLoaded) return; lockRatio.checked = false; widthInput.value = w; heightInput.value = h; drawImage(); };
+function dlImg() {
+    if (!ok) return alert("Select an image first!");
+    const box = document.getElementById('adBox'), txt = document.getElementById('adSec'), btn = document.getElementById('adBtn');
+    let s = 15;
+    box.style.display = 'flex';
+    btn.disabled = true;
+    btn.style.background = '#475569';
+    btn.style.cursor = 'not-allowed';
+    txt.textContent = '⏳ Please wait ' + s + 's...';
+    btn.textContent = 'Wait ' + s + 's...';
+    btn.onclick = null;
 
-window.cropAspect = function(rw, rh) {
-    if (!isImageLoaded || !workingImage) return;
-    const targetRatio = rw / rh;
-    let sw = workingImage.width, sh = workingImage.height, cw = sw, ch = sh;
-    if (sw / sh > targetRatio) cw = Math.round(sh * targetRatio); else ch = Math.round(sw / targetRatio);
-    const temp = document.createElement('canvas'); temp.width = cw; temp.height = ch;
-    temp.getContext('2d').drawImage(workingImage, Math.round((sw - cw) / 2), Math.round((sh - ch) / 2), cw, ch, 0, 0, cw, ch);
-    const img = new Image();
-    img.onload = function() { workingImage = img; aspectRatio = cw / ch; widthInput.value = cw; heightInput.value = ch; rotation = 0; drawImage(); };
-    img.src = temp.toDataURL('image/png');
-};
+    if (tm) clearInterval(tm);
+    tm = setInterval(function() {
+        s--;
+        if (s > 0) {
+            txt.textContent = '⏳ Please wait ' + s + 's...';
+            btn.textContent = 'Wait ' + s + 's...';
+        } else {
+            clearInterval(tm);
+            txt.textContent = '✅ Ready to Save!';
+            btn.disabled = false;
+            btn.style.background = '#10b981';
+            btn.style.cursor = 'pointer';
+            btn.textContent = '⬇️ Save Image Now';
+            btn.onclick = function() {
+                saveFile();
+                box.style.display = 'none';
+            };
+        }
+    }, 1000);
+}
 
-window.resetImage = function() {
-    if (!isImageLoaded || !originalImage) return;
-    workingImage = originalImage; aspectRatio = originalImage.width / originalImage.height;
-    widthInput.value = originalImage.width; heightInput.value = originalImage.height;
-    resetStates(); drawImage();
-};
+function saveFile() {
+    const fmt = document.getElementById('fmtSel').value;
+    const q = parseInt(document.getElementById('qInp').value) / 100;
+    const ext = fmt === 'image/png' ? 'png' : (fmt === 'image/webp' ? 'webp' : 'jpg');
+    const filename = 'PixelForge_' + Date.now() + '.' + ext;
 
-window.downloadImage = function() {
-    if (!isImageLoaded) return alert("Please select an image first!");
-
-    if (window.AndroidAds && typeof window.AndroidAds.showRewardedAd === 'function') {
-        window.AndroidAds.showRewardedAd();
-        return;
+    const exp = document.createElement('canvas');
+    exp.width = c.width;
+    exp.height = c.height;
+    const ec = exp.getContext('2d');
+    if (fmt === 'image/jpeg') {
+        ec.fillStyle = '#ffffff';
+        ec.fillRect(0, 0, exp.width, exp.height);
     }
+    ec.drawImage(c, 0, 0);
 
-    const modal = document.getElementById('videoAdModal');
-    const timerText = document.getElementById('adTimerText');
-    const skipBtn = document.getElementById('skipAdBtn');
+    exp.toBlob(function(blob) {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(url); }, 3000);
+    }, fmt, q);
+}
 
-    if (!modal) { saveCanvasNow(); return; }
-
-    let seconds = 15;
-    modal.style.display = 'flex';
-    skipBtn.disabled = true;
-    skipBtn.style.background = '#475569';
-    skipBtn.style.color = '#94a3b8';
+document.getElementById('tolInp').oninput = function() { document.getElementById('tolTxt').textContent = this.value; if (nBg) draw(); };
+document.getElementById('brInp').oninput = function() { document.getElementById('brTxt').textContent = this.value; draw(); };
+document.getElementById('ctInp').oninput = function() { document.getElementById('ctTxt').textContent = this.value; draw(); };
+document.getElementById('qInp').oninput = function() { document.getElementById('qTxt').textContent = this.value + '%'; draw(); };
+document.getElementById('fmtSel').onchange = draw;
+document.getElementById('watermarkInput').oninput = draw;
+document.getElementById('wmCol').oninput = draw;
+document.getElementById('wmPos').onchange = draw;
+document.getElementById('wInp').oninput = function() { if (ok && document.getElementById('lockInp').checked) document.getElementById('hInp').value = Math.round(parseInt(this.value) / rat); draw(); };
+document.getElementById('hInp').oninput = function() { if (ok && document.getElementById('lockInp').checked) document.getElementById('wInp').value = Math.round(parseInt(this.value) * rat); draw(); };
